@@ -1010,10 +1010,12 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     
 }
 
--(void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error
+- (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error
 {
     @synchronized(_downloadConnections)
     {
+        [connection cancel];
+        
         NSInteger connectionIndex = [_downloadConnections indexOfObject:connection];
         [_downloadConnections removeObjectAtIndex:connectionIndex];
         [_downloadConnectionRequests removeObjectAtIndex:connectionIndex];
