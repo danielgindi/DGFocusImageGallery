@@ -56,11 +56,30 @@ typedef enum _DGFocusImageGalleryCropAnchor
     DGFocusImageGalleryCropAnchorBottomRight
 } DGFocusImageGalleryCropAnchor;
 
+@class DGFocusImageGallery;
+
+@protocol DGFocusImageGalleryDelegate <NSObject>
+
+@optional
+- (void)focusImageGalleryWillAppear:(DGFocusImageGallery *)gallery;
+- (void)focusImageGalleryDidAppear:(DGFocusImageGallery *)gallery;
+- (void)focusImageGalleryWillDisappear:(DGFocusImageGallery *)gallery;
+- (void)focusImageGalleryDidDisappear:(DGFocusImageGallery *)gallery;
+
+/*! @brief return NO if you want to prevent showing the controls on tap */
+- (BOOL)focusImageGalleryWillShowControls:(DGFocusImageGallery *)gallery;
+
+/*! @brief return NO if you want to prevent showing the controls on tap */
+- (BOOL)focusImageGalleryWillHideControls:(DGFocusImageGallery *)gallery;
+
+@end
+
 @interface DGFocusImageGallery : UIViewController
 
-- (id)initWithGalleryUrls:(NSArray *)galleryUrls;
+- (id)initWithGalleryUrls:(NSArray *)galleryUrls delegate:(id<DGFocusImageGalleryDelegate>)delegate;
 
 + (DGFocusImageGallery *)showInViewController:(UIViewController *)viewController
+                                     delegate:(id<DGFocusImageGalleryDelegate>)delegate
                             withImageFromView:(UIView *)sourceView
                                andGalleryUrls:(NSArray *)galleryUrls
                          andCurrentImageIndex:(NSInteger)currentImage
@@ -80,6 +99,21 @@ typedef enum _DGFocusImageGalleryCropAnchor
  Default: NO */
 @property (nonatomic, assign) BOOL detectScaleFromFileName;
 
+/*! @property backgroundColorWhenFullyVisible
+ @brief The background color to animate to when showing the gallery.
+ Default: black 0.8 alpha */
+@property (nonatomic, strong) UIColor *backgroundColorWhenFullyVisible;
+
+/*! @property controlsView
+ @brief Here you can set a custom view for controls. It will be shown/hidden automatically. Do not forget to set its constraints against the viewcontroller's view.
+ Usually you will want to setup this in focusImageGalleryWillAppear delegate call, as you receive the pointer to the viewcontroller.
+ The view will be automatically atatched/detached to the gallery's view when set/unset, and alpha will be adjusted accordingly.
+ Default: The automatically generated controls view. */
+@property (nonatomic, strong) UIView *controlsView;
+
+/*! @property delegate */
+@property (nonatomic, weak) id<DGFocusImageGalleryDelegate> delegate;
+
 /*! Maximum asynchronous connections that can be used to load images.
  The default is 8.
  @return The max connections */
@@ -96,5 +130,8 @@ typedef enum _DGFocusImageGalleryCropAnchor
 /*! Total connections which include active + pending connections, used by this instance
  @param int The total connections count */
 - (NSUInteger)totalConnections;
+
+/*! Start hiding sequence */
+- (void)hide;
 
 @end

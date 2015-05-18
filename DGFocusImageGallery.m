@@ -54,10 +54,9 @@
     
     NSInteger _currentSelectedImage;
     
-    UIView *_topControlsView;
-    UIButton *_closeButton;
-    
     BOOL _recognizingPinchOnImageContainer;
+    
+    CALayer *_defaultControlsViewBgLayer;
 }
 
 @property (nonatomic, strong) NSArray *galleryUrls;
@@ -83,6 +82,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         _activeConnections = [NSMutableArray array];
         _imageViews = [NSMutableArray array];
         _imageViewContainers = [NSMutableArray array];
+        _backgroundColorWhenFullyVisible = [UIColor colorWithWhite:0.f alpha:0.8f];
         
         self.allowImageRotation = YES;
     }
@@ -122,6 +122,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     if (!_scrollView)
     {
         _scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
+        _scrollView.translatesAutoresizingMaskIntoConstraints = NO;
         _scrollView.pagingEnabled = YES;
         _scrollView.delegate = self;
         _scrollView.showsHorizontalScrollIndicator = NO;
@@ -134,38 +135,89 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         float xOffset = self.view.frame.size.width * ((float)_currentSelectedImage);
         _scrollView.contentOffset = CGPointMake(xOffset, 0.f);
     }
-    if (!_topControlsView)
+    
+    [self.view addSubview:_scrollView];
+    
+    if (!_controlsView)
     {
-        [CATransaction begin];
-        [CATransaction setValue:(id)kCFBooleanTrue forKey:kCATransactionDisableActions];
-        _topControlsView = [[UIView alloc] initWithFrame:CGRectMake(0.f, 0.f, self.view.frame.size.width, 80.f)];
-        _topControlsView.backgroundColor = [UIColor clearColor];
-        _topControlsView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleBottomMargin;
+        // Create the default controls view
+        
+        self.controlsView = [[UIView alloc] initWithFrame:CGRectMake(0.f, 0.f, self.view.frame.size.width, 80.f)];
+        self.controlsView.backgroundColor = [UIColor clearColor];
+        [self.controlsView addConstraint:[NSLayoutConstraint constraintWithItem:self.controlsView attribute:NSLayoutAttributeHeight relatedBy:NSLayoutRelationEqual toItem:nil attribute:NSLayoutAttributeNotAnAttribute multiplier:1.f constant:80.f]];
+        [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[view]|" options:0 metrics:nil views:@{@"view": self.controlsView}]];
+        [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[view]" options:0 metrics:nil views:@{@"view": self.controlsView}]];
+        
         CAGradientLayer *gradientLayer = [[CAGradientLayer alloc] init];
         gradientLayer.backgroundColor = [UIColor clearColor].CGColor;
         UIColor *firstColor = [UIColor colorWithWhite:2.f alpha:.1f];
         gradientLayer.colors = @[(id)firstColor.CGColor, (id)[firstColor colorWithAlphaComponent:0.f].CGColor];
         gradientLayer.locations = @[@.8f, @1.f];
-        gradientLayer.frame = _topControlsView.layer.bounds;
-        [_topControlsView.layer addSublayer:gradientLayer];
-        _topControlsView.alpha = 0.f;
-        [CATransaction commit];
+        gradientLayer.frame = self.controlsView.layer.bounds;
+        [self.controlsView.layer addSublayer:gradientLayer];
+        _defaultControlsViewBgLayer = gradientLayer;
         
         UIImage *buttonImage = [UIImage imageNamed:@"DGFocusImageGallery-Close.png"];
         CGRect rc;
         rc.size = buttonImage.size;
-        rc.origin.y = 10.f + ([[UIApplication sharedApplication] statusBarFrame].size.height);
-        rc.origin.x = _topControlsView.frame.size.width - rc.size.width - 10.f;
-        _closeButton = [[UIButton alloc] initWithFrame:rc];
-        [_closeButton setBackgroundImage:buttonImage forState:UIControlStateNormal];
-        [_closeButton addTarget:self action:@selector(closeButtonTouchedUpInside:) forControlEvents:UIControlEventTouchDown];
-        [_topControlsView addSubview:_closeButton];
+        rc.origin.y = 10.f;
+        rc.origin.x = self.controlsView.frame.size.width - rc.size.width - 10.f;
+        
+        UIButton *closeButton = [[UIButton alloc] initWithFrame:rc];
+        [closeButton setBackgroundImage:buttonImage forState:UIControlStateNormal];
+        [closeButton addTarget:self action:@selector(closeButtonTouchedUpInside:) forControlEvents:UIControlEventTouchDown];
+        [self.controlsView addSubview:closeButton];
+        
+        [closeButton addConstraint:[NSLayoutConstraint constraintWithItem:closeButton attribute:NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual toItem:nil attribute:NSLayoutAttributeNotAnAttribute multiplier:1.f constant:buttonImage.size.width]];
+        [closeButton addConstraint:[NSLayoutConstraint constraintWithItem:closeButton attribute:NSLayoutAttributeHeight relatedBy:NSLayoutRelationEqual toItem:nil attribute:NSLayoutAttributeNotAnAttribute multiplier:1.f constant:buttonImage.size.height]];
+        
+        [self.controlsView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:[button]-10-|" options:0 metrics:nil views:@{@"button": closeButton}]];
+        [self.controlsView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-10-[button]" options:0 metrics:nil views:@{@"button": closeButton}]];
     }
     
-    [self.view addSubview:_scrollView];
-    [self.view bringSubviewToFront:_topControlsView];
+    // Make sure it is setup to initial state
+    self.controlsView.alpha = 0.f;
+    self.controlsView.hidden = YES;
     
-    [[UIApplication sharedApplication] setStatusBarHidden:YES withAnimation:UIStatusBarAnimationFade];
+    // Make sure that the controls view is in the hierarchy, and in front
+    if (self.controlsView.superview == self.view)
+    {
+        [self.view addSubview:self.controlsView];
+    }
+    else
+    {
+        [self.view bringSubviewToFront:self.controlsView];
+    }
+    
+    if ([_delegate respondsToSelector:@selector(focusImageGalleryWillAppear:)])
+    {
+        [_delegate focusImageGalleryWillAppear:self];
+    }
+}
+
+- (void)setControlsView:(UIView *)controlsView
+{
+    if (_controlsView == controlsView)
+        return;
+    
+    if (_controlsView)
+    {
+        [_controlsView removeFromSuperview];
+        _controlsView = nil;
+    }
+    
+    _controlsView = controlsView;
+    if (_controlsView)
+    {
+        _controlsView.alpha = 0.f;
+        _controlsView.hidden = YES;
+        
+        if (self.isViewLoaded)
+        {
+            [self.view addSubview:self.controlsView];
+            [self.view bringSubviewToFront:self.controlsView];
+        }
+    }
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -173,7 +225,23 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     [super viewDidAppear:animated];
     
     [self startDownloadForImageIndex:_currentSelectedImage];
+    
+    if ([_delegate respondsToSelector:@selector(focusImageGalleryDidAppear:)])
+    {
+        [_delegate focusImageGalleryDidAppear:self];
+    }
 }
+
+- (void)viewWillDisappear:(BOOL)animated
+{
+    [super viewWillDisappear:animated];
+    
+    if ([_delegate respondsToSelector:@selector(focusImageGalleryWillDisappear:)])
+    {
+        [_delegate focusImageGalleryWillDisappear:self];
+    }
+}
+
 
 - (void)viewDidDisappear:(BOOL)animated
 {
@@ -182,9 +250,10 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     [_scrollView removeFromSuperview];
     _scrollView = nil;
     
-    [_topControlsView removeFromSuperview];
-    _topControlsView = nil;
-    _closeButton = nil;
+    if ([_delegate respondsToSelector:@selector(focusImageGalleryDidDisappear:)])
+    {
+        [_delegate focusImageGalleryDidDisappear:self];
+    }
 }
 
 - (void)didReceiveMemoryWarning
@@ -193,17 +262,19 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     // Dispose of any resources that can be recreated.
 }
 
-- (id)initWithGalleryUrls:(NSArray *)galleryUrls
+- (id)initWithGalleryUrls:(NSArray *)galleryUrls delegate:(id<DGFocusImageGalleryDelegate>)delegate
 {
     self = [self init];
     if (self)
     {
         self.galleryUrls = galleryUrls;
+        self.delegate = delegate;
     }
     return self;
 }
 
 + (DGFocusImageGallery *)showInViewController:(UIViewController *)viewController
+                                     delegate:(id<DGFocusImageGalleryDelegate>)delegate
                             withImageFromView:(UIView *)sourceView
                                andGalleryUrls:(NSArray *)galleryUrls
                          andCurrentImageIndex:(NSInteger)currentImage
@@ -214,6 +285,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     
     DGFocusImageGallery *vc = [[DGFocusImageGallery alloc] init];
     vc.galleryUrls = galleryUrls;
+    vc.delegate = delegate;
     vc->_currentSelectedImage = currentImage;
     
     NSString *cachePath = [DGFocusImageGallery getLocalCachePathForUrl:(NSURL *)vc.galleryUrls[currentImage]];
@@ -230,17 +302,26 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     }
     
     UIView *superview = viewController.view;
-    if (viewController.navigationController)
+    
+    /*if (viewController.navigationController)
     {
         superview = viewController.navigationController.view;
     }
     if ([NSStringFromClass(superview.class) isEqualToString:@"UILayoutContainerView"])
     {
         superview = superview.superview;
-    }
+    }*/
     
+    // Setup view's frame
     vc.view.frame = CGRectMake(0.f, 0.f, superview.frame.size.width, superview.frame.size.height);
+    
+    // Prepare for adding sub view controller, with proper notifications
+    [viewController addChildViewController:vc];
+    
+    // Add viewcontroller's view
     [superview addSubview:vc.view];
+    [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-[view]-|" options:0 metrics:nil views:@{@"view": vc.view}]];
+    [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-[view]-|" options:0 metrics:nil views:@{@"view": vc.view}]];
     
     UIImageView *imageView = [vc createImageViewForImage:viewImage atIndex:currentImage];
     CGRect rcDest = imageView.frame;
@@ -271,16 +352,16 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     [UIView animateWithDuration:0.5f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
         
         imageView.frame = rcDest;
-        vc.view.backgroundColor = [UIColor blackColor];
+        vc.view.backgroundColor = vc.backgroundColorWhenFullyVisible;
         imageView.alpha = 1.f;
         
     } completion:^(BOOL finished) {
         
-        [viewController presentViewController:vc animated:NO completion:nil];
+        [vc didMoveToParentViewController:viewController];
         
     }];
     
-    [vc addObserver:vc forKeyPath:@"view.frame" options:NSKeyValueObservingOptionOld context:NULL];
+    [vc addObserver:vc forKeyPath:@"view.frame" options:NSKeyValueObservingOptionOld | NSKeyValueObservingOptionNew context:NULL];
     
     s_DGFocusImageGallery_activeGallery = vc;
     
@@ -357,30 +438,17 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     [self layoutViewWithFrame:rc];
 }
 
-- (UIStatusBarStyle)preferredStatusBarStyle
-{
-    return UIStatusBarStyleDefault;
-}
-
-- (UIStatusBarAnimation)preferredStatusBarUpdateAnimation
-{
-    return UIStatusBarAnimationFade;
-}
-
 - (BOOL)prefersStatusBarHidden
 {
-    return _topControlsView.alpha == 0.f;
+    return YES;
 }
 
 - (void)layoutViewWithFrame:(CGRect)frame
 {
-    _topControlsView.frame = CGRectMake(0.f, 0.f, frame.size.width, 80.f);
-    ((CALayer *)_topControlsView.layer.sublayers[0]).frame = _topControlsView.layer.bounds;
-    
-    CGRect rc = _closeButton.frame;
-    rc.origin.y = 10.f + ([[UIApplication sharedApplication] statusBarFrame].size.height);
-    rc.origin.x = frame.size.width - rc.size.width - 10.f;
-    _closeButton.frame = rc;
+    if (_defaultControlsViewBgLayer)
+    {
+        _defaultControlsViewBgLayer.frame = _defaultControlsViewBgLayer.superlayer.bounds;
+    }
     
     NSInteger currentImage = _scrollView.contentOffset.x / _scrollView.frame.size.width;
     _scrollView.frame = frame;
@@ -414,11 +482,13 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     {
         CGRect oldFrame = CGRectNull;
         CGRect newFrame = CGRectNull;
-        if([change objectForKey:@"old"] != [NSNull null]) {
-            oldFrame = [[change objectForKey:@"old"] CGRectValue];
+        if([change objectForKey:NSKeyValueChangeOldKey] != [NSNull null])
+        {
+            oldFrame = [[change objectForKey:NSKeyValueChangeOldKey] CGRectValue];
         }
-        if([object valueForKeyPath:keyPath] != [NSNull null]) {
-            newFrame = [[object valueForKeyPath:keyPath] CGRectValue];
+        if([change objectForKey:NSKeyValueChangeNewKey] != [NSNull null])
+        {
+            newFrame = [[change objectForKey:NSKeyValueChangeNewKey] CGRectValue];
         }
         if (CGRectIsNull(oldFrame) || !CGRectEqualToRect(oldFrame, newFrame))
         {
@@ -469,19 +539,19 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     }
 }
 
-#pragma mark - Actions
-
-- (void)closeButtonTouchedUpInside:(id)sender
+- (void)hide
 {
     NSArray *subviews = self.view.subviews;
     UIView *superview = self.view.superview;
-    [self.presentingViewController dismissViewControllerAnimated:NO completion:nil];
+    
+    [self willMoveToParentViewController:nil];
+    
     [superview addSubview:self.view];
     for (UIView *view in subviews)
     {
         [self.view addSubview:view];
     }
-
+    
     [UIView animateWithDuration:.5f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
         
         self.view.alpha = 0.f;
@@ -490,6 +560,8 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         
         [self.view removeFromSuperview];
         [self cancelAllConnections];
+        [self removeFromParentViewController];
+        
         if (s_DGFocusImageGallery_activeGallery == self)
         {
             s_DGFocusImageGallery_activeGallery = nil; // Releease
@@ -498,30 +570,56 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     }];
 }
 
+#pragma mark - Actions
+
+- (void)closeButtonTouchedUpInside:(id)sender
+{
+    [self hide];
+}
+
 - (void)globalTapGestureRecognized:(UITapGestureRecognizer *)recognizer
 {
-    BOOL show = _topControlsView.alpha == 0.f;
+    BOOL show = self.controlsView.alpha == 0.f;
     
-    [UIView animateWithDuration:.3f delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction animations:^{
+    BOOL cancel = NO;
+    
+    if (show)
+    {
+        if ([_delegate respondsToSelector:@selector(focusImageGalleryWillShowControls:)])
+        {
+            cancel = ![_delegate focusImageGalleryWillShowControls:self];
+        }
+    }
+    else
+    {
+        if ([_delegate respondsToSelector:@selector(focusImageGalleryWillHideControls:)])
+        {
+            cancel = ![_delegate focusImageGalleryWillHideControls:self];
+        }
+    }
+    
+    if (cancel)
+    {
+        return;
+    }
+    
+    [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction animations:^{
         
         if (show)
         {
-            [self.view addSubview:_topControlsView];
-            _topControlsView.alpha = 1.f;
+            self.controlsView.hidden = NO;
+            self.controlsView.alpha = 1.f;
         }
         else
         {
-            _topControlsView.alpha = 0.f;
+            self.controlsView.alpha = 0.f;
         }
-        
-        [[UIApplication sharedApplication] setStatusBarHidden:!show withAnimation:UIStatusBarAnimationFade];
-        [self setNeedsStatusBarAppearanceUpdate];
         
     } completion:^(BOOL finished) {
         
-        if (_topControlsView.alpha == 0.f)
+        if (self.controlsView.alpha == 0.f)
         {
-            [_topControlsView removeFromSuperview];
+            self.controlsView.hidden = YES;
         }
         
     }];
@@ -1075,7 +1173,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     }
 }
 
-#pragma mark - UI_scrollViewDelegate
+#pragma mark - UIScrollViewDelegate
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
