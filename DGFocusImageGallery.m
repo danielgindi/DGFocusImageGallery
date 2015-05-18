@@ -5,7 +5,7 @@
 //  Created by Daniel Cohen Gindi on 11/13/12.
 //  Copyright (c) 2013 danielgindi@gmail.com. All rights reserved.
 //
-//  https://github.com/danielgindi/drunken-danger-zone
+//  https://github.com/danielgindi/DGFocusImageGallery
 //
 //  The MIT License (MIT)
 //  
