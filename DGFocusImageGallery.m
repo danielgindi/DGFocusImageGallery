@@ -99,6 +99,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
 {
     UIView *view = [[UIView alloc] init];
     
+    view.translatesAutoresizingMaskIntoConstraints = NO;
     view.frame = [UIScreen mainScreen].applicationFrame;
     view.backgroundColor = [UIColor colorWithWhite:0.f alpha:0.f];
     
@@ -143,6 +144,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         // Create the default controls view
         
         self.controlsView = [[UIView alloc] initWithFrame:CGRectMake(0.f, 0.f, self.view.frame.size.width, 80.f)];
+        self.controlsView.translatesAutoresizingMaskIntoConstraints = NO;
         self.controlsView.backgroundColor = [UIColor clearColor];
         [self.controlsView addConstraint:[NSLayoutConstraint constraintWithItem:self.controlsView attribute:NSLayoutAttributeHeight relatedBy:NSLayoutRelationEqual toItem:nil attribute:NSLayoutAttributeNotAnAttribute multiplier:1.f constant:80.f]];
         [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[view]|" options:0 metrics:nil views:@{@"view": self.controlsView}]];
@@ -164,6 +166,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         rc.origin.x = self.controlsView.frame.size.width - rc.size.width - 10.f;
         
         UIButton *closeButton = [[UIButton alloc] initWithFrame:rc];
+        closeButton.translatesAutoresizingMaskIntoConstraints = NO;
         [closeButton setBackgroundImage:buttonImage forState:UIControlStateNormal];
         [closeButton addTarget:self action:@selector(closeButtonTouchedUpInside:) forControlEvents:UIControlEventTouchDown];
         [self.controlsView addSubview:closeButton];
@@ -320,8 +323,8 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     
     // Add viewcontroller's view
     [superview addSubview:vc.view];
-    [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-[view]-|" options:0 metrics:nil views:@{@"view": vc.view}]];
-    [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-[view]-|" options:0 metrics:nil views:@{@"view": vc.view}]];
+    [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[view]|" options:0 metrics:nil views:@{@"view": vc.view}]];
+    [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[view]|" options:0 metrics:nil views:@{@"view": vc.view}]];
     
     UIImageView *imageView = [vc createImageViewForImage:viewImage atIndex:currentImage];
     CGRect rcDest = imageView.frame;
