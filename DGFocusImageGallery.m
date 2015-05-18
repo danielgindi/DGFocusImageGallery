@@ -546,7 +546,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
 {
     [self willMoveToParentViewController:nil];
     
-    [UIView animateWithDuration:.5f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
+    [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseOut animations:^{
         
         self.view.alpha = 0.f;
         
@@ -1049,7 +1049,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
             NSString *cachePath = [DGFocusImageGallery getLocalCachePathForUrl:currentUrl];
             [[NSFileManager defaultManager] moveItemAtPath:imageFilePath toPath:cachePath error:nil];
             
-            UIActivityIndicatorView *activityIndicatorView = _imageViews[imageIndex];
+            UIView *currentImageView = _imageViews[imageIndex];
             UIImage *viewImage = [UIImage imageWithContentsOfFile:cachePath];
             
             if (viewImage)
@@ -1057,13 +1057,24 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
                 dispatch_async(dispatch_get_main_queue(), ^{
                     
                     UIImageView *imageView = [self createImageViewForImage:viewImage atIndex:imageIndex];
-                    imageView.alpha = 0.f;
                     
-                    [UIView animateWithDuration:0.3f delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
-                        activityIndicatorView.alpha = 0.f;
-                        imageView.alpha = 1.0;
+                    CGRect destFrame = imageView.frame;
+                    CGRect srcFrame = currentImageView ? destFrame : [currentImageView.layer.presentationLayer frame];
+                    
+                    imageView.alpha = 0.f;
+                    imageView.frame = srcFrame;
+                
+                    [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionBeginFromCurrentState animations:^{
+                        
+                        imageView.alpha = 1.f;
+                        
+                        if (!CGRectEqualToRect(srcFrame, destFrame))
+                        {
+                            imageView.frame = destFrame;
+                        }
+                        
                     } completion:^(BOOL finished) {
-                        [activityIndicatorView removeFromSuperview];
+                        [currentImageView removeFromSuperview];
                     }];
                     
                 });
