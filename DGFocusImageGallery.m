@@ -58,8 +58,6 @@
     UIButton *_closeButton;
     
     BOOL _recognizingPinchOnImageContainer;
-    
-    BOOL isIos7OrGreater;
 }
 
 @property (nonatomic, strong) NSArray *galleryUrls;
@@ -75,8 +73,6 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     self = [super init];
     if (self)
     {
-        isIos7OrGreater = [[[UIDevice currentDevice] systemVersion] compare:@"7.0" options:NSNumericSearch] != NSOrderedAscending;
-            
         _maxAsyncConnections = DEFAULT_MAX_ASYNC_CONNECTIONS;
         
         _startedDownload = [[NSMutableArray alloc] init];
@@ -158,7 +154,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         UIImage *buttonImage = [UIImage imageNamed:@"DGFocusImageGallery-Close.png"];
         CGRect rc;
         rc.size = buttonImage.size;
-        rc.origin.y = 10.f + (isIos7OrGreater ? [[UIApplication sharedApplication] statusBarFrame].size.height : 0.f);
+        rc.origin.y = 10.f + ([[UIApplication sharedApplication] statusBarFrame].size.height);
         rc.origin.x = _topControlsView.frame.size.width - rc.size.width - 10.f;
         _closeButton = [[UIButton alloc] initWithFrame:rc];
         [_closeButton setBackgroundImage:buttonImage forState:UIControlStateNormal];
@@ -169,10 +165,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     [self.view addSubview:_scrollView];
     [self.view bringSubviewToFront:_topControlsView];
     
-    if (isIos7OrGreater)
-    {
-        [[UIApplication sharedApplication] setStatusBarHidden:YES withAnimation:UIStatusBarAnimationFade];
-    }
+    [[UIApplication sharedApplication] setStatusBarHidden:YES withAnimation:UIStatusBarAnimationFade];
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -275,7 +268,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     }
     [vc->_startedDownload replaceObjectAtIndex:currentImage withObject:@(YES)];
     
-    [UIView animateWithDuration:0.15f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
+    [UIView animateWithDuration:0.5f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
         
         imageView.frame = rcDest;
         vc.view.backgroundColor = [UIColor blackColor];
@@ -385,7 +378,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     ((CALayer *)_topControlsView.layer.sublayers[0]).frame = _topControlsView.layer.bounds;
     
     CGRect rc = _closeButton.frame;
-    rc.origin.y = 10.f + (isIos7OrGreater ? [[UIApplication sharedApplication] statusBarFrame].size.height : 0.f);
+    rc.origin.y = 10.f + ([[UIApplication sharedApplication] statusBarFrame].size.height);
     rc.origin.x = frame.size.width - rc.size.width - 10.f;
     _closeButton.frame = rc;
     
@@ -489,7 +482,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         [self.view addSubview:view];
     }
 
-    [UIView animateWithDuration:0.15 delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
+    [UIView animateWithDuration:.5f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
         
         self.view.alpha = 0.f;
         
@@ -509,7 +502,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
 {
     BOOL show = _topControlsView.alpha == 0.f;
     
-    [UIView animateWithDuration:0.15 delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction animations:^{
+    [UIView animateWithDuration:.3f delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction animations:^{
         
         if (show)
         {
@@ -521,11 +514,8 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
             _topControlsView.alpha = 0.f;
         }
         
-        if (isIos7OrGreater)
-        {
-            [[UIApplication sharedApplication] setStatusBarHidden:!show withAnimation:UIStatusBarAnimationFade];
-            [self setNeedsStatusBarAppearanceUpdate];
-        }
+        [[UIApplication sharedApplication] setStatusBarHidden:!show withAnimation:UIStatusBarAnimationFade];
+        [self setNeedsStatusBarAppearanceUpdate];
         
     } completion:^(BOOL finished) {
         
@@ -644,7 +634,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
             if (sqrt(transform.a*transform.a+transform.c*transform.c) < 1.f ||
                 sqrt(transform.b*transform.b+transform.d*transform.d) < 1.f)
             {
-                [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseOut animations:^{
+                [UIView animateWithDuration:0.15f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
                     
                     imageView.transform = CGAffineTransformIdentity;
                     imageView.layer.anchorPoint = CGPointMake(0.5f, 0.5f);
@@ -673,7 +663,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     
     if (imageView)
     {
-        [UIView animateWithDuration:0.3 delay:0.0 options:UIViewAnimationOptionCurveEaseIn animations:^{
+        [UIView animateWithDuration:0.3f delay:0.f options:UIViewAnimationOptionCurveEaseIn animations:^{
             
             if (CGAffineTransformEqualToTransform(imageView.transform, CGAffineTransformIdentity))
             {
@@ -975,7 +965,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
                     UIImageView *imageView = [self createImageViewForImage:viewImage atIndex:imageIndex];
                     imageView.alpha = 0.f;
                     
-                    [UIView animateWithDuration:0.3 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+                    [UIView animateWithDuration:0.3f delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
                         activityIndicatorView.alpha = 0.f;
                         imageView.alpha = 1.0;
                     } completion:^(BOOL finished) {
