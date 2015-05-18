@@ -5,7 +5,7 @@
 //  Created by Daniel Cohen Gindi on 11/13/12.
 //  Copyright (c) 2013 danielgindi@gmail.com. All rights reserved.
 //
-//  https://github.com/danielgindi/DGFocusImageGallery
+//  https://github.com/danielgindi/drunken-danger-zone
 //
 //  The MIT License (MIT)
 //  
@@ -275,7 +275,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     }
     [vc->_startedDownload replaceObjectAtIndex:currentImage withObject:@(YES)];
     
-    [UIView animateWithDuration:0.5f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
+    [UIView animateWithDuration:0.15f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
         
         imageView.frame = rcDest;
         vc.view.backgroundColor = [UIColor blackColor];
@@ -489,7 +489,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         [self.view addSubview:view];
     }
 
-    [UIView animateWithDuration:.5f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
+    [UIView animateWithDuration:0.15 delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
         
         self.view.alpha = 0.f;
         
@@ -509,7 +509,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
 {
     BOOL show = _topControlsView.alpha == 0.f;
     
-    [UIView animateWithDuration:.3f delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction animations:^{
+    [UIView animateWithDuration:0.15 delay:0 options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionAllowUserInteraction animations:^{
         
         if (show)
         {
@@ -644,7 +644,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
             if (sqrt(transform.a*transform.a+transform.c*transform.c) < 1.f ||
                 sqrt(transform.b*transform.b+transform.d*transform.d) < 1.f)
             {
-                [UIView animateWithDuration:0.15f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
+                [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseOut animations:^{
                     
                     imageView.transform = CGAffineTransformIdentity;
                     imageView.layer.anchorPoint = CGPointMake(0.5f, 0.5f);
@@ -673,7 +673,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     
     if (imageView)
     {
-        [UIView animateWithDuration:0.3f delay:0.f options:UIViewAnimationOptionCurveEaseIn animations:^{
+        [UIView animateWithDuration:0.3 delay:0.0 options:UIViewAnimationOptionCurveEaseIn animations:^{
             
             if (CGAffineTransformEqualToTransform(imageView.transform, CGAffineTransformIdentity))
             {
@@ -975,7 +975,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
                     UIImageView *imageView = [self createImageViewForImage:viewImage atIndex:imageIndex];
                     imageView.alpha = 0.f;
                     
-                    [UIView animateWithDuration:0.3f delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+                    [UIView animateWithDuration:0.3 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
                         activityIndicatorView.alpha = 0.f;
                         imageView.alpha = 1.0;
                     } completion:^(BOOL finished) {
