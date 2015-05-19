@@ -36,6 +36,20 @@
 
 #define DEFAULT_MAX_ASYNC_CONNECTIONS 8
 
+@interface DGFocusImageGalleryItem : NSObject
+
+@property (nonatomic, strong) UIView *container;
+@property (nonatomic, strong) UIView *view;
+@property (nonatomic, strong) UIImage *fullImageToShow;
+@property (nonatomic, assign) BOOL isFull;
+@property (nonatomic, assign) BOOL startedDownload;
+@property (nonatomic, assign) BOOL isAnimating;
+
+@end
+
+@implementation DGFocusImageGalleryItem
+@end
+
 @interface DGFocusImageGallery () <UIScrollViewDelegate, NSURLConnectionDelegate, UIGestureRecognizerDelegate>
 {
     NSMutableArray *_downloadConnectionRequests;
@@ -44,9 +58,7 @@
     NSMutableArray *_downloadConnectionsWriteHandles;
     NSMutableArray *_activeConnections;
     
-    NSMutableArray *_imageViewContainers;
-    NSMutableArray *_imageViews;
-    NSMutableArray *_startedDownload;
+    NSMutableArray *_items;
     
     UIScrollView *_scrollView;
     
@@ -74,14 +86,12 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     {
         _maxAsyncConnections = DEFAULT_MAX_ASYNC_CONNECTIONS;
         
-        _startedDownload = [[NSMutableArray alloc] init];
         _downloadConnectionRequests = [NSMutableArray array];
         _downloadConnections = [NSMutableArray array];
         _downloadConnectionsFilePaths = [NSMutableArray array];
         _downloadConnectionsWriteHandles = [NSMutableArray array];
         _activeConnections = [NSMutableArray array];
-        _imageViews = [NSMutableArray array];
-        _imageViewContainers = [NSMutableArray array];
+        _items = [NSMutableArray array];
         _backgroundColorWhenFullyVisible = [UIColor colorWithWhite:0.f alpha:0.8f];
         
         self.allowImageRotation = YES;
@@ -125,7 +135,6 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         _scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
         _scrollView.translatesAutoresizingMaskIntoConstraints = NO;
         _scrollView.pagingEnabled = YES;
-        _scrollView.delegate = self;
         _scrollView.showsHorizontalScrollIndicator = NO;
         _scrollView.scrollsToTop = NO;
         _scrollView.clipsToBounds = YES;
@@ -135,6 +144,9 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         
         float xOffset = self.view.frame.size.width * ((float)_currentSelectedImage);
         _scrollView.contentOffset = CGPointMake(xOffset, 0.f);
+        
+        // Set the delegate as the last thing, to prevent delegates from being fired by property intializations
+        _scrollView.delegate = self;
     }
     
     [self.view addSubview:_scrollView];
@@ -291,6 +303,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     vc.delegate = delegate;
     vc->_currentSelectedImage = currentImage;
     
+    // Start loading current image
     NSString *cachePath = [DGFocusImageGallery getLocalCachePathForUrl:(NSURL *)vc.galleryUrls[currentImage]];
     UIImage *viewImage = [UIImage imageWithContentsOfFile:cachePath];
     BOOL isFullImage = YES;
@@ -306,15 +319,6 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     
     UIView *superview = viewController.view;
     
-    /*if (viewController.navigationController)
-    {
-        superview = viewController.navigationController.view;
-    }
-    if ([NSStringFromClass(superview.class) isEqualToString:@"UILayoutContainerView"])
-    {
-        superview = superview.superview;
-    }*/
-    
     // Setup view's frame
     vc.view.frame = CGRectMake(0.f, 0.f, superview.frame.size.width, superview.frame.size.height);
     
@@ -326,7 +330,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[view]|" options:0 metrics:nil views:@{@"view": vc.view}]];
     [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[view]|" options:0 metrics:nil views:@{@"view": vc.view}]];
     
-    UIImageView *imageView = [vc createImageViewForImage:viewImage atIndex:currentImage];
+    UIImageView *imageView = [vc createImageViewForImage:viewImage atIndex:currentImage isFull:isFullImage];
     CGRect rcDest = imageView.frame;
     
     CGRect rcOrg = [sourceView.superview convertRect:sourceView.frame toView:superview];
@@ -342,25 +346,36 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     imageView.frame = rcOrg;
     imageView.alpha = 0.f;
     
+    DGFocusImageGalleryItem *currentItem = vc->_items[currentImage];
+    
     if (!isFullImage)
     {
         UIActivityIndicatorView *activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
         activityIndicator.center = (CGPoint){rcOrg.size.width / 2.f, rcOrg.size.height / 2.f};
+        activityIndicator.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
         [imageView addSubview:activityIndicator];
         [activityIndicator startAnimating];
         [vc startDownloadingImageAtUrl:vc.galleryUrls[currentImage]];
     }
-    [vc->_startedDownload replaceObjectAtIndex:currentImage withObject:@(YES)];
     
-    [UIView animateWithDuration:0.5f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
+    currentItem.startedDownload = YES;
+    currentItem.isAnimating = YES;
+    [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseOut animations:^{
         
         imageView.frame = rcDest;
         vc.view.backgroundColor = vc.backgroundColorWhenFullyVisible;
-        imageView.alpha = 1.f;
+        imageView.alpha = 1.0;
         
     } completion:^(BOOL finished) {
         
         [vc didMoveToParentViewController:viewController];
+        
+        currentItem.isAnimating = NO;
+        
+        if (currentItem.fullImageToShow)
+        {
+            [vc animateFinalImageToPlaceAfterLoad:currentImage fullImage:currentItem.fullImageToShow];
+        }
         
     }];
     
@@ -371,7 +386,9 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     return vc;
 }
 
-- (UIImageView *)createImageViewForImage:(UIImage *)image atIndex:(NSInteger)index
+- (UIImageView *)createImageViewForImage:(UIImage *)image
+                                 atIndex:(NSInteger)index
+                                  isFull:(BOOL)isFull
 {
     float scale = image.scale / UIScreen.mainScreen.scale;
     CGSize destSize = [DGFocusImageGallery rectForWidth:image.size.width * scale
@@ -398,8 +415,10 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     [imageViewContainer addSubview:imageView];
     [self->_scrollView addSubview:imageViewContainer];
     
-    [_imageViews replaceObjectAtIndex:index withObject:imageView];
-    [_imageViewContainers replaceObjectAtIndex:index withObject:imageViewContainer];
+    DGFocusImageGalleryItem *item = _items[index];
+    item.view = imageView;
+    item.isFull = isFull;
+    item.container = imageViewContainer;
     
     UIPinchGestureRecognizer *pinchRecognizer = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(pinchScaleGestureRecognizedOnImageContainer:)];
     pinchRecognizer.delegate = self;
@@ -438,7 +457,8 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     rc.size.height = rc.size.width;
     rc.size.width = w;
     rc.origin.x = rc.origin.y;
-    [self layoutViewWithFrame:rc];
+    
+    [self resetImageViewContainersPositionWithFrame:rc];
 }
 
 - (BOOL)prefersStatusBarHidden
@@ -446,24 +466,21 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     return YES;
 }
 
-- (void)layoutViewWithFrame:(CGRect)frame
+- (void)resetImageViewContainersPositionWithFrame:(CGRect)frame
 {
-    if (_defaultControlsViewBgLayer)
-    {
-        _defaultControlsViewBgLayer.frame = _defaultControlsViewBgLayer.superlayer.bounds;
-    }
-    
     NSInteger currentImage = _scrollView.contentOffset.x / _scrollView.frame.size.width;
     _scrollView.frame = frame;
     _scrollView.contentSize = CGSizeMake(_scrollView.frame.size.width * _galleryUrls.count, _scrollView.frame.size.height);
     _scrollView.contentOffset = CGPointMake(_scrollView.frame.size.width * ((float)currentImage), 0.f);
     
     NSInteger idx = 0;
-    for (UIView *view in _imageViewContainers)
+    for (DGFocusImageGalleryItem *item in _items)
     {
-        if (view == (id)[NSNull null]) continue;
+        if (!item.view) continue;
         
-        view.frame = CGRectMake(((float)idx++) * _scrollView.frame.size.width, 0.f, _scrollView.frame.size.width, _scrollView.frame.size.height);
+        CGRect destFrame = CGRectMake(((float)idx++) * _scrollView.frame.size.width, 0.f, _scrollView.frame.size.width, _scrollView.frame.size.height);
+        
+        item.container.frame = destFrame;
     }
 }
 
@@ -471,33 +488,12 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
 {
     [super viewDidLayoutSubviews];
     
-    [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseOut animations:^{
-        
-        [self layoutViewWithFrame:self.view.frame];
-        
-    } completion:^(BOOL finished) {
-    }];
-}
-
-- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
-{
-    if ([keyPath isEqualToString:@"view.frame"])
+    if (_defaultControlsViewBgLayer)
     {
-        CGRect oldFrame = CGRectNull;
-        CGRect newFrame = CGRectNull;
-        if([change objectForKey:NSKeyValueChangeOldKey] != [NSNull null])
-        {
-            oldFrame = [[change objectForKey:NSKeyValueChangeOldKey] CGRectValue];
-        }
-        if([change objectForKey:NSKeyValueChangeNewKey] != [NSNull null])
-        {
-            newFrame = [[change objectForKey:NSKeyValueChangeNewKey] CGRectValue];
-        }
-        if (CGRectIsNull(oldFrame) || !CGRectEqualToRect(oldFrame, newFrame))
-        {
-            [self layoutViewWithFrame:newFrame];
-        }
+        _defaultControlsViewBgLayer.frame = _defaultControlsViewBgLayer.superlayer.bounds;
     }
+    
+    [self resetImageViewContainersPositionWithFrame:self.view.bounds];
 }
 
 - (void)closeAndRemoveTempFile:(NSString *)filePath writeHandle:(NSFileHandle *)fileWriteHandle
@@ -530,15 +526,11 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     }
     _galleryUrls = urls;
     
-    [_imageViews removeAllObjects];
-    [_imageViewContainers removeAllObjects];
-    [_startedDownload removeAllObjects];
+    [_items removeAllObjects];
     
     for (NSUInteger i = 0, count = _galleryUrls.count; i < count; i++)
     {
-        [_imageViews addObject:[NSNull null]];
-        [_imageViewContainers addObject:[NSNull null]];
-        [_startedDownload addObject:[NSNull null]];
+        [_items addObject:[[DGFocusImageGalleryItem alloc] init]];
     }
 }
 
@@ -621,16 +613,35 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
 {
-    return [_imageViewContainers containsObject:gestureRecognizer.view] && [_imageViewContainers containsObject:otherGestureRecognizer.view];
+    BOOL foundA = NO, foundB = NO;
+    for (DGFocusImageGalleryItem *item in _items)
+    {
+        if (item.container == gestureRecognizer.view)
+        {
+            foundA = YES;
+        }
+        if (item.container == otherGestureRecognizer.view)
+        {
+            foundB = YES;
+        }
+        if (foundA || foundB)
+        {
+            return YES;
+        }
+    }
+    return NO;
 }
 
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer
 {
     if ([gestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]])
     {
-        if ([_imageViewContainers containsObject:gestureRecognizer.view])
+        for (DGFocusImageGalleryItem *item in _items)
         {
-            return _recognizingPinchOnImageContainer;
+            if (item.container == gestureRecognizer.view)
+            {
+                return _recognizingPinchOnImageContainer;
+            }
         }
     }
     return YES;
@@ -726,7 +737,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
             if (sqrt(transform.a*transform.a+transform.c*transform.c) < 1.f ||
                 sqrt(transform.b*transform.b+transform.d*transform.d) < 1.f)
             {
-                [UIView animateWithDuration:0.15f delay:0.f options:UIViewAnimationOptionCurveEaseOut animations:^{
+                [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseOut animations:^{
                     
                     imageView.transform = CGAffineTransformIdentity;
                     imageView.layer.anchorPoint = CGPointMake(0.5f, 0.5f);
@@ -755,19 +766,27 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     
     if (imageView)
     {
-        [UIView animateWithDuration:0.3f delay:0.f options:UIViewAnimationOptionCurveEaseIn animations:^{
+        [UIView animateWithDuration:0.3 delay:0.0 options:UIViewAnimationOptionCurveEaseIn animations:^{
+            
+            float scale = imageView.image.scale / UIScreen.mainScreen.scale;
+            CGRect imageViewFrame = [DGFocusImageGallery rectForWidth:imageView.image.size.width * scale
+                                            andHeight:imageView.image.size.height * scale
+                                              inFrame:_scrollView.bounds
+                                      keepAspectRatio:YES
+                                       fitFromOutside:NO
+                                           cropAnchor:DGFocusImageGalleryCropAnchorCenterCenter];
             
             if (CGAffineTransformEqualToTransform(imageView.transform, CGAffineTransformIdentity))
             {
-                imageView.transform = CGAffineTransformMakeScale(2.f, 2.f);
+                imageView.transform = CGAffineTransformIdentity;
+                imageView.frame = imageViewFrame;
                 imageView.layer.anchorPoint = CGPointMake(0.5f, 0.5f);
-                imageView.center = CGPointMake(imageView.superview.bounds.size.width / 2.f, imageView.superview.bounds.size.height / 2.f);
+                imageView.transform = CGAffineTransformMakeScale(2.f, 2.f);
             }
             else
             {
                 imageView.transform = CGAffineTransformIdentity;
-                imageView.layer.anchorPoint = CGPointMake(0.5f, 0.5f);
-                imageView.center = CGPointMake(imageView.superview.bounds.size.width / 2.f, imageView.superview.bounds.size.height / 2.f);
+                imageView.frame = imageViewFrame;
             }
             
         } completion:^(BOOL finished) {
@@ -1008,6 +1027,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         [connection cancel];
         
         NSInteger connectionIndex = [_downloadConnections indexOfObject:connection];
+        [_activeConnections removeObjectAtIndex:connectionIndex];
         [_downloadConnections removeObjectAtIndex:connectionIndex];
         [_downloadConnectionRequests removeObjectAtIndex:connectionIndex];
         
@@ -1032,6 +1052,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         imageFilePath = _downloadConnectionsFilePaths[connectionIndex];
         
         currentUrl = ((NSURLRequest *)_downloadConnectionRequests[connectionIndex]).URL;
+        [_activeConnections removeObjectAtIndex:connectionIndex];
         [_downloadConnections removeObjectAtIndex:connectionIndex];
         [_downloadConnectionRequests removeObjectAtIndex:connectionIndex];
         [_downloadConnectionsWriteHandles removeObjectAtIndex:connectionIndex];
@@ -1049,39 +1070,67 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
             NSString *cachePath = [DGFocusImageGallery getLocalCachePathForUrl:currentUrl];
             [[NSFileManager defaultManager] moveItemAtPath:imageFilePath toPath:cachePath error:nil];
             
-            UIView *currentImageView = _imageViews[imageIndex];
-            UIImage *viewImage = [UIImage imageWithContentsOfFile:cachePath];
+            UIImage *fullImage = [UIImage imageWithContentsOfFile:cachePath];
             
-            if (viewImage)
+            if (fullImage)
             {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     
-                    UIImageView *imageView = [self createImageViewForImage:viewImage atIndex:imageIndex];
-                    
-                    CGRect destFrame = imageView.frame;
-                    CGRect srcFrame = currentImageView ? destFrame : [currentImageView.layer.presentationLayer frame];
-                    
-                    imageView.alpha = 0.f;
-                    imageView.frame = srcFrame;
-                
-                    [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut | UIViewAnimationOptionBeginFromCurrentState animations:^{
-                        
-                        imageView.alpha = 1.f;
-                        
-                        if (!CGRectEqualToRect(srcFrame, destFrame))
-                        {
-                            imageView.frame = destFrame;
-                        }
-                        
-                    } completion:^(BOOL finished) {
-                        [currentImageView removeFromSuperview];
-                    }];
+                    [self animateFinalImageToPlaceAfterLoad:imageIndex fullImage:fullImage];
                     
                 });
             }
             
         });
     }
+}
+
+- (void)animateFinalImageToPlaceAfterLoad:(NSInteger)index fullImage:(UIImage *)fullImage
+{
+    DGFocusImageGalleryItem *item = _items[index];
+    
+    if (item.isAnimating)
+    {
+        item.fullImageToShow = fullImage;
+        return;
+    }
+    
+    item.fullImageToShow = nil;
+    
+    UIView *currentImageView = item.view;
+    
+    UIImageView *imageView = [self createImageViewForImage:fullImage
+                                                   atIndex:index
+                                                    isFull:YES];
+    
+    CGRect destFrame = imageView.frame;
+    CGRect srcFrame = [currentImageView isKindOfClass:UIImageView.class] ? currentImageView.frame : destFrame;
+    
+    if (CGRectEqualToRect(srcFrame, destFrame))
+    {
+        imageView.alpha = 0.f;
+    }
+    else
+    {
+        imageView.frame = srcFrame;
+    }
+    
+    [UIView animateWithDuration:0.15 delay:0.0 options:UIViewAnimationOptionCurveEaseInOut  animations:^{
+        
+        if (CGRectEqualToRect(srcFrame, destFrame))
+        {
+            imageView.alpha = 1.f;
+        }
+        else
+        {
+            imageView.frame = destFrame;
+        }
+        
+    } completion:^(BOOL finished) {
+        
+        [currentImageView removeFromSuperview];
+        
+    }];
 }
 
 #pragma mark - Connection control
@@ -1211,37 +1260,65 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
 
 - (void)startDownloadForImageIndex:(NSUInteger)index
 {
-    if (index == NSNotFound || index >= _startedDownload.count || _startedDownload[index] != (id)NSNull.null) return;
+    if (index == NSNotFound ||
+        index >= _items.count) return;
+    
+    DGFocusImageGalleryItem *item = _items[index];
+    
+    if (item.startedDownload || item.isFull) return;
     
     NSString *cachePath = [DGFocusImageGallery getLocalCachePathForUrl:(NSURL *)_galleryUrls[index]];
     UIImage *viewImage = [UIImage imageWithContentsOfFile:cachePath];
     
-    [_startedDownload replaceObjectAtIndex:index withObject:@(YES)];
+    item.startedDownload = YES;
+
     if (viewImage)
     {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self createImageViewForImage:viewImage atIndex:index];
+            [self createImageViewForImage:viewImage atIndex:index isFull:YES];
         });
     }
     else
     {
-        CGRect scrollArea = _scrollView.bounds;
-        scrollArea.origin.x = ((float)index) * scrollArea.size.width;
+        UIActivityIndicatorView *activityIndicator = nil;
         
-        UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-        CGRect rc = [DGFocusImageGallery rectForWidth:view.frame.size.width
-                                            andHeight:view.frame.size.height
-                                              inFrame:scrollArea
-                                      keepAspectRatio:YES
-                                       fitFromOutside:NO
-                                           cropAnchor:DGFocusImageGalleryCropAnchorCenterCenter];
-        view.frame = rc;
-        view.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        if ([item.view isKindOfClass:UIImageView.class])
+        {
+            UIView *view = item.view;
+            CGRect rc = view.bounds;
+            
+            activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
+            activityIndicator.center = (CGPoint){rc.origin.x + rc.size.width / 2.f, rc.origin.y + rc.size.height / 2.f};
+            [item.view addSubview:activityIndicator];
+        }
+        else
+        {
+            CGRect scrollArea = _scrollView.bounds;
+            scrollArea.origin.x = ((float)index) * scrollArea.size.width;
+        
+            activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
+            CGRect rc = [DGFocusImageGallery rectForWidth:activityIndicator.frame.size.width
+                                                andHeight:activityIndicator.frame.size.height
+                                                  inFrame:scrollArea
+                                          keepAspectRatio:YES
+                                           fitFromOutside:NO
+                                               cropAnchor:DGFocusImageGalleryCropAnchorCenterCenter];
+            activityIndicator.frame = rc;
+            activityIndicator.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            item.view = activityIndicator;
+        }
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            [_scrollView addSubview:view];
-            [view startAnimating];
+            
+            UIView *view = item.view;
+            
+            if (view.superview != _scrollView)
+            {
+                [_scrollView addSubview:view];
+            }
+            
+            [activityIndicator startAnimating];
         });
-        [_imageViews replaceObjectAtIndex:index withObject:view];
         
         [self startDownloadingImageAtUrl:_galleryUrls[index]];
     }
