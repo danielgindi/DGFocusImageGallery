@@ -330,6 +330,9 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[view]|" options:0 metrics:nil views:@{@"view": vc.view}]];
     [superview addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[view]|" options:0 metrics:nil views:@{@"view": vc.view}]];
     
+    float xOffset = superview.bounds.size.width * (float)currentImage;
+    vc->_scrollView.contentOffset = CGPointMake(xOffset, 0.f);
+    
     UIImageView *imageView = [vc createImageViewForImage:viewImage atIndex:currentImage isFull:isFullImage];
     CGRect rcDest = imageView.frame;
     
@@ -367,7 +370,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
         imageView.alpha = 1.0;
         
     } completion:^(BOOL finished) {
-        
+        [imageView frame];
         [vc didMoveToParentViewController:viewController];
         
         currentItem.isAnimating = NO;
@@ -476,11 +479,13 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
     NSInteger idx = 0;
     for (DGFocusImageGalleryItem *item in _items)
     {
-        if (!item.view) continue;
-        
-        CGRect destFrame = CGRectMake(((float)idx++) * _scrollView.frame.size.width, 0.f, _scrollView.frame.size.width, _scrollView.frame.size.height);
-        
-        item.container.frame = destFrame;
+        if (item.view)
+        {
+            CGRect destFrame = CGRectMake(((float)idx++) * _scrollView.frame.size.width, 0.f, _scrollView.frame.size.width, _scrollView.frame.size.height);
+            
+            item.container.frame = destFrame;
+        }
+        idx++;
     }
 }
 
