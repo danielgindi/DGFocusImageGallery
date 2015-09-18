@@ -1011,7 +1011,7 @@ static DGFocusImageGallery *s_DGFocusImageGallery_activeGallery;
 		NSInteger statusCode = [((NSHTTPURLResponse *)response) statusCode];
 		if (statusCode != 200)
 		{
-			[self connection:connection didFailWithError:nil];
+			[self connection:connection didFailWithError:[NSError errorWithDomain:response.URL.host code:statusCode userInfo:nil]];
 		}
 	}
 }
